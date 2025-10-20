@@ -15,24 +15,6 @@
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
     "paths": {
-      "@constants": [
-        "src/constants"
-      ],
-      "@database": [
-        "src/database"
-      ],
-      "@domains": [
-        "src/domains"
-      ],
-      "@http": [
-        "src/http"
-      ],
-      "@services": [
-        "src/services"
-      ],
-      "@utils": [
-        "src/utils"
-      ],
       "@/*": [
         "src/*"
       ]

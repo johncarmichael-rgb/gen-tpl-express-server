@@ -14,10 +14,10 @@ case $command in
     NODE_ENV=development npm install
 
     echo "Running dev server..."
-    npm run dev:start
+    exec npm run dev:start
   ;;
   prod)
     echo "Running server..."
-    npm run start
+    exec npm run start
   ;;
 esac
