@@ -8,16 +8,24 @@ import cors from 'cors';
  */
 export default () => {
   const whitelist = config.corsWhiteList.split(',');
+  console.log('CORS whitelist:', whitelist);
+
   if (whitelist.length === 1 && whitelist[0] === '*') {
-    return cors()
+    // Allow all origins but with credentials support (reflect the origin)
+    return cors({
+      origin: true,
+      credentials: true, // Allow credentials (cookies, auth headers)
+    });
   }
+
   return cors({
     origin: (origin: string | undefined, callback: any) => {
-      if (whitelist.indexOf(origin) !== -1) {
-        callback(null, true)
+      if (!origin || whitelist.indexOf(origin) !== -1) {
+        callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'))
+        callback(new Error('Not allowed by CORS'));
       }
     },
-  })
+    credentials: true, // Allow credentials - aka cookies
+  });
 }
