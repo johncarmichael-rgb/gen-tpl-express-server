@@ -8,7 +8,6 @@ import cors from 'cors';
  */
 export default () => {
   const whitelist = config.corsWhiteList.split(',');
-  console.log('CORS whitelist:', whitelist);
 
   if (whitelist.length === 1 && whitelist[0] === '*') {
     // Allow all origins but with credentials support (reflect the origin)
