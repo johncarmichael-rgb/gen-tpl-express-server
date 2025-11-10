@@ -11,6 +11,9 @@ declare global {
       originalToken: string;
       clientIp?: string;
       iapUser?: IAPUserData;
+
+      /** If content-negotiation fails, default to this Content-Type instead of throwing. Can be set in the domain. */
+      defaultContentType?: string;
     }
   }
 }
