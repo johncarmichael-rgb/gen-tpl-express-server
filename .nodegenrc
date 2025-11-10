@@ -6,10 +6,6 @@
   "segmentSecondGrouping": 4,
   "helpers": {
     "noDomainDocBlock": true,
-    "stub": {
-      "jwtType": "JwtAccess",
-      "requestType": "NodegenRequest"
-    },
     "objectReduceByMapOptions": {
       "allowNullish": false,
       "keepKeys": false,
