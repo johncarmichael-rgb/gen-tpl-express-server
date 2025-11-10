@@ -4,6 +4,7 @@ import {
   handleExpress404,
   handleHttpException,
   headersCaching,
+  iapAuthMiddleware,
   inferResponseType,
 } from '@/http/nodegen/middleware';
 import express from 'express';
@@ -49,6 +50,18 @@ export const requestParser = (app: express.Application): void => {
   app.use(requestIp.mw());
 };
 
+/**
+ * Apply authentication middlewares
+ * IAP authentication validates JWT tokens from Google Cloud IAP
+ * This must run AFTER request parsing (to access headers) but BEFORE routes
+ */
+export const authenticationMiddleware = (app: express.Application): void => {
+  // Validate Google Cloud IAP JWT tokens
+  // In production: validates x-goog-iap-jwt-assertion header
+  // In development: skips validation (uses ENABLE_DEV_AUTH_BYPASS instead)
+  app.use(iapAuthMiddleware());
+};
+
 export const accessLogger = (app: express.Application, accessLoggerOpts?: AccessLoggerOptions): void => {
   // A bug in the morgan logger results in IPs being dropped when the node instance is running behind a proxy.
   // The following pattern uses the requestIp middleware "req.client" and adds the response time.
@@ -84,6 +97,7 @@ export const requestMiddleware = (app: express.Application, appMiddlewareOpts?: 
   helmetMiddleware(app, appMiddlewareOpts?.helmet)
   requestParser(app);
   responseHeaders(app);
+  authenticationMiddleware(app); // Apply IAP authentication
   app.use(inferResponseType());
 };
 
