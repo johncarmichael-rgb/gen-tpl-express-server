@@ -121,8 +121,6 @@ export default function iapAuthMiddleware() {
   const iapConfig = getIAPConfig();
 
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const iapReq = req as NodegenRequest;
-
     // Skip IAP validation if not enabled (development mode)
     if (!iapConfig.enabled) {
       return next();
@@ -154,7 +152,7 @@ export default function iapAuthMiddleware() {
       const userData = await validateIAPToken(iapJwt, expectedAudience);
 
       // Attach user data to request for downstream use
-      iapReq.iapUser = userData;
+      req.iapUser = userData;
 
       // Log successful authentication (optional, remove in production if too verbose)
       console.log(`IAP Auth: User ${userData.email} authenticated`);
