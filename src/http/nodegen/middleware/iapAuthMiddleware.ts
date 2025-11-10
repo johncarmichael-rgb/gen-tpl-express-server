@@ -1,6 +1,5 @@
 import { OAuth2Client } from 'google-auth-library';
 import express from 'express';
-import NodegenRequest from '../../interfaces/NodegenRequest';
 import config from '@/config';
 
 /**
@@ -78,12 +77,9 @@ async function validateIAPToken(token: string, expectedAudience: string): Promis
   try {
     // Get Google's public keys and verify the JWT
     const response = await oAuth2Client.getIapPublicKeys();
-    const ticket = await oAuth2Client.verifySignedJwtWithCertsAsync(
-      token,
-      response.pubkeys,
-      expectedAudience,
-      ['https://cloud.google.com/iap']
-    );
+    const ticket = await oAuth2Client.verifySignedJwtWithCertsAsync(token, response.pubkeys, expectedAudience, [
+      'https://cloud.google.com/iap',
+    ]);
 
     const payload = ticket.getPayload();
     if (!payload) {

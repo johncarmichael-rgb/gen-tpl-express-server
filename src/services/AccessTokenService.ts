@@ -1,28 +1,22 @@
 import express = require('express');
-import { IncomingHttpHeaders } from 'http';
-import jwt from 'jsonwebtoken';
-import _ from 'lodash';
-import config from '../config';
-import { UnauthorizedException } from '@/http/nodegen/errors';
 import NodegenRequest from '@/http/interfaces/NodegenRequest';
-
-interface JwtDetails {
-  maxAge: number;
-  sessionData: any;
-}
+import SessionRepository from '@/database/SessionRepository';
 
 export interface ValidateRequestOptions {
-  passThruWithoutJWT: boolean;
+  passThruWithoutSession: boolean;
 }
 
+/**
+ * AccessTokenService
+ * 
+ * Validates session cookies for authenticated requests.
+ * 
+ * NOTE: In production, sessions are created by iapAuthMiddleware.
+ * This service only validates that a valid session exists.
+ * 
+ * For development without IAP, sessions must be created manually via API.
+ */
 class AccessTokenService {
-  /**
-   * Used by the validateRequest method
-   * @param res
-   * @param e
-   * @param msg
-   * @param headersProvidedString
-   */
   private denyRequest(
     res: express.Response,
     e = 'AccessTokenService did not match the given keys or tokens',
@@ -36,126 +30,57 @@ class AccessTokenService {
     });
   }
 
-  /**
-   * Simple function that assumes a prefix or bearer is a jwt else it is a simple api key
-   * @param headers
-   * @param headerNames
-   */
-  public extractAuthHeader(
-    headers: IncomingHttpHeaders,
-    headerNames: string[]
-  ): {
-    jwtToken: string | undefined;
-    apiKey: string | undefined;
-  } {
-    let jwtToken: string | undefined;
-    let apiKey: string | undefined;
-    for (let i = 0; i < headerNames.length; ++i) {
-      const tokenRaw = String(headers[headerNames[i].toLowerCase()] || headers[headerNames[i]] || '');
-      if (tokenRaw.length > 0) {
-        const tokenParts = tokenRaw.split('Bearer ');
-        if (tokenRaw.substring(0, 7) === 'Bearer ') {
-          jwtToken = tokenParts[1];
-          break;
-        } else {
-          // This is a token but not JWT thus API key
-          apiKey = tokenRaw;
-        }
-      }
-    }
-    return {
-      jwtToken,
-      apiKey,
-    };
-  }
-
-  /**
-   * Checks a JWT or API key differentiating between the two with the existence or not of Bearer.
-   * !! Extend this method as required.
-   * !! Note the src/http/nodegen/security/definitions.ts.njk contains all security definitions
-   * @param req
-   * @param res
-   * @param next
-   * @param headerNames
-   * @param options
-   */
-  public validateRequest(
+  public async validateRequest(
     req: NodegenRequest,
     res: express.Response,
     next: express.NextFunction,
     headerNames: string[],
     options?: ValidateRequestOptions
-  ): void {
-    const { jwtToken, apiKey } = this.extractAuthHeader(req.headers, headerNames);
-    if (!jwtToken && !apiKey) {
-      if (options && options.passThruWithoutJWT) {
+  ): Promise<void> {
+    // Check if session data was already set by iapAuthMiddleware
+    if (req.sessionData) {
+      // Session already validated by IAP middleware, continue
+      return next();
+    }
+
+    // No session data from IAP middleware, check for session cookie
+    const sessionId = req.cookies?.session;
+
+    if (!sessionId) {
+      if (options && options.passThruWithoutSession) {
         return next();
       }
-      return this.denyRequest(res, 'No token to parse', 'No auth token provided.', JSON.stringify(req.headers));
-    }
-    if (jwtToken) {
-      // verify the JWT token
-      this.verifyJWT(jwtToken)
-        .then((decodedToken: any) => {
-          req.jwtData = decodedToken;
-          req.originalToken = jwtToken;
-          next();
-        })
-        .catch(() => {
-          this.denyRequest(res);
-        });
-    } else if (config.apiKey === apiKey) {
-      // verify the access token
-      next();
-    } else {
-      this.denyRequest(res);
-    }
-  }
-
-  /**
-   * Generates a JTW token
-   * @param details
-   */
-  public generateJWToken(details: JwtDetails) {
-    if (typeof details.maxAge !== 'number') {
-      details.maxAge = 3600;
+      return this.denyRequest(
+        res, 
+        'No session provided', 
+        'Authentication required. Please access through Google Cloud IAP or create a session.',
+        JSON.stringify(req.cookies)
+      );
     }
 
-    details.sessionData = _.reduce(
-      details.sessionData || {},
-      (memo: any, val: any, key: string) => {
-        if (typeof val !== 'function' && key !== 'password') {
-          memo[key] = val;
-        }
-        return memo;
-      },
-      {}
-    );
-    return jwt.sign(
-      {
-        data: details.sessionData,
-      },
-      config.jwtAccessSecret,
-      {
-        algorithm: 'HS256',
-        expiresIn: details.maxAge,
+    try {
+      const session = await SessionRepository.findBySessionId(sessionId);
+      
+      if (!session) {
+        return this.denyRequest(res, 'Invalid session', 'Session not found or expired.');
       }
-    );
-  }
 
-  /**
-   * Verify a JWT and return its payload
-   * @param token
-   */
-  public verifyJWT(token: string): Promise<any> {
-    return new Promise((resolve) => {
-      jwt.verify(token, config.jwtAccessSecret, (err: any, data: any) => {
-        if (err) {
-          throw new UnauthorizedException();
-        }
-        return resolve(data.data);
-      });
-    });
+      // Update last accessed time (fire and forget)
+      SessionRepository.updateLastAccessed(sessionId).catch(err => 
+        console.error('Failed to update session last accessed:', err)
+      );
+
+      // Attach minimal session data to request
+      req.sessionData = {
+        sessionId: session.sessionId,
+        userId: session.userId,
+      };
+      
+      next();
+    } catch (error) {
+      console.error('Session validation error:', error);
+      this.denyRequest(res, 'Session validation failed', 'Invalid session.');
+    }
   }
 }
 

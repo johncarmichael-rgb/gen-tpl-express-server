@@ -1,0 +1,128 @@
+import express from 'express';
+import UserRepository from '@/database/UserRepository';
+import CompanyRepository from '@/database/CompanyRepository';
+import SessionService from '@/services/SessionService';
+import { IAPUserData } from '@/http/nodegen/middleware/iapAuthMiddleware';
+import { BadRequestException, ForbiddenException } from '@/http/nodegen/errors';
+
+/**
+ * IapUserSessionService
+ *
+ * Handles all database and session operations for IAP-authenticated users.
+ * This service is called by iapAuthMiddleware after JWT validation.
+ *
+ * Responsibilities:
+ * - Find or create users based on IAP data
+ * - Create companies for new users
+ * - Manage sessions and cookies
+ * - Attach session data to requests
+ */
+class IapUserSessionService {
+  /**
+   * Handle complete user and session setup for IAP-authenticated request
+   *
+   * This is the main entry point called by iapAuthMiddleware.
+   *
+   * Flow:
+   * 1. Find or create user (and company if needed)
+   * 2. Find or create session
+   * 3. Set session cookie
+   * 4. Return session data to attach to request
+   *
+   * @param iapUserData - Validated IAP user data from JWT
+   * @param req - Express request
+   * @param res - Express response (for setting cookies)
+   * @returns Session data to attach to request
+   */
+  async handleAuthenticatedUser(
+    iapUserData: IAPUserData,
+    req: express.Request,
+    res: express.Response
+  ): Promise<{ sessionId: string; userId: string }> {
+    // Find or create user (and company if needed)
+    const user = await this.findOrCreateUser(iapUserData);
+
+    // Find or create session and set cookie
+    const session = await SessionService.findOrCreateSession(user._id, res, req);
+
+    console.log(`🔐 IAP Auth complete: ${user.email} → Session: ${session.sessionId}`);
+
+    // Return session data to attach to request
+    return {
+      sessionId: session.sessionId,
+      userId: user._id,
+    };
+  }
+
+  /**
+   * Find or create user based on IAP user data
+   *
+   * Flow:
+   * 1. Look up user by externalId (Google sub)
+   * 2. If user exists, return user
+   * 3. If user doesn't exist:
+   *    - Extract email domain
+   *    - Look up company by domain
+   *    - If company found, create user and assign to that company
+   *    - If no company found, reject (admin must create company first)
+   *
+   * @param iapUser - Validated IAP user data from JWT
+   * @returns User document
+   * @throws Error if no company exists for the user's domain
+   */
+  private async findOrCreateUser(iapUser: IAPUserData) {
+    // Try to find existing user by Google sub (externalId)
+    let user = await UserRepository.findByExternalId(iapUser.sub);
+
+    if (user) {
+      console.log(`✅ Existing user found: ${user.email} (${user._id})`);
+      return user;
+    }
+
+    // User doesn't exist - look up company by email domain
+    console.log(`🆕 New user attempting to sign in: ${iapUser.email}`);
+
+    // Extract email domain
+    const emailDomain = iapUser.email.split('@')[1];
+    if (!emailDomain) {
+      throw new BadRequestException('Invalid email format - no domain found');
+    }
+
+    // Look up company by domain
+    const company = await CompanyRepository.findByDomain(emailDomain);
+
+    if (!company) {
+      console.error(`❌ No company found for domain: ${emailDomain}`);
+      throw new ForbiddenException({
+        message: `Access denied: No company exists for domain "${emailDomain}"`,
+        details: 'Please contact your administrator to set up your company account.',
+        domain: emailDomain,
+      });
+    }
+
+    console.log(`🏢 Company found for domain ${emailDomain}: ${company.name} (${company._id})`);
+
+    // Parse name into first and last name
+    const nameParts = (iapUser.name || iapUser.email.split('@')[0]).split(' ');
+    const firstName = nameParts[0] || 'User';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    // Create user and assign to company
+    user = await UserRepository.create({
+      email: iapUser.email,
+      firstName,
+      lastName,
+      companyId: company._id,
+      externalId: iapUser.sub,
+      avatar: iapUser.picture,
+      displayName: iapUser.name,
+      createdBy: 'system',
+    });
+
+    console.log(`👤 User created and assigned to ${company.name}: ${user.email} (${user._id})`);
+
+    return user;
+  }
+}
+
+export default new IapUserSessionService();
