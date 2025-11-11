@@ -31,16 +31,6 @@ export default function() {
         {% else -%}
           /* x-raw-body on path not found: Format the body */
           express.json({ limit: '50mb' }),
-          {%- if securityNames %}
-            /* security on path found: Validate request security tokens */
-            accessTokenMiddleware(
-              {{ securityNames }},
-              {%- if path['x-passThruWithoutJWT'] %}
-                /* x-passThruWithoutJWT found on path: Inject bool true */
-                {passThruWithoutJWT: true}
-              {% endif -%}
-            ),
-          {% endif -%}
           {%- if path['x-permission'] %}
             /* x-permission on path found: Check permission of the incoming user */
             permissionMiddleware('{{ path['x-permission'] }}'),
