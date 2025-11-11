@@ -1,6 +1,7 @@
 import { OAuth2Client } from 'google-auth-library';
 import express from 'express';
 import config from '@/config';
+import { UnauthorizedException } from '../errors';
 
 /**
  * IAP JWT payload structure from Google Cloud IAP
@@ -111,16 +112,19 @@ async function validateIAPToken(token: string, expectedAudience: string): Promis
       throw new Error('Invalid JWT payload');
     }
 
-    // Extract user data from verified token
+    if (!payload.email || !payload.sub || !payload.iat || !payload.exp) {
+      throw new UnauthorizedException('Invalid JWT payload - missing email, sub, iat, or exp');
+    }
+
     return {
-      email: payload.email || '',
-      sub: payload.sub || '',
+      email: payload.email,
+      sub: payload.sub,
       name: payload.name,
       picture: payload.picture,
       aud: payload.aud as string,
       iss: payload.iss as string,
-      iat: payload.iat || 0,
-      exp: payload.exp || 0,
+      iat: payload.iat,
+      exp: payload.exp,
     };
   } catch (error) {
     throw new Error(`IAP JWT validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -139,19 +143,17 @@ async function validateIAPToken(token: string, expectedAudience: string): Promis
  * @returns Express middleware function
  */
 export default function iapAuthMiddleware() {
-  // Cache the config setup in a local var here
   const iapConfig = getIAPConfig();
 
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     // Skip IAP validation if not enabled (typically development mode)
     if (!iapConfig.enabled) {
       if (iapConfig.devAutoSeed) {
-        // Set a properly structured dev user object
         req.iapUser = createDevIAPUser();
         console.log(`IAP Auth DEV: User ${req.iapUser?.email} authenticated`);
         return next();
       }
-      return next();
+      throw new UnauthorizedException('IAP authentication is not enabled');
     }
 
     try {
@@ -181,9 +183,6 @@ export default function iapAuthMiddleware() {
 
       // Attach user data to request for downstream use
       req.iapUser = userData;
-
-      // Log successful authentication (optional, remove in production if too verbose)
-      console.log(`IAP Auth: User ${userData.email} authenticated`);
 
       next();
     } catch (error) {
