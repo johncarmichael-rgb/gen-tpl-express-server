@@ -38,7 +38,7 @@ export interface IAPConfig {
 /**
  * Get IAP configuration from environment variables
  */
-function getIAPConfig(): IAPConfig {
+function getIAPConfig (): IAPConfig {
   return {
     enabled: config.env === 'production' || config.iap.enabled,
     projectNumber: config.iap.projectNumber,
@@ -64,7 +64,7 @@ function getIAPConfig(): IAPConfig {
  * ✅ Required by Google's library - Can't skip this parameter
  * ✅ Matches your GCP setup - Ensures token was issued for YOUR app specifically
  */
-function buildExpectedAudience(iapConfig: IAPConfig): string | null {
+function buildExpectedAudience (iapConfig: IAPConfig): string | null {
   const { projectNumber, projectId, backendServiceId } = iapConfig;
 
   if (projectNumber && projectId) {
@@ -81,7 +81,7 @@ function buildExpectedAudience(iapConfig: IAPConfig): string | null {
 /**
  * Create a development IAP user object from config
  */
-function createDevIAPUser(): IAPUserData {
+function createDevIAPUser (): IAPUserData {
   const now = Math.floor(Date.now() / 1000);
   return {
     email: config.iap.devAutoSeed?.user.email || '',
@@ -98,7 +98,7 @@ function createDevIAPUser(): IAPUserData {
 /**
  * Validate IAP JWT token and extract user data
  */
-async function validateIAPToken(token: string, expectedAudience: string): Promise<IAPUserData> {
+async function validateIAPToken (token: string, expectedAudience: string): Promise<IAPUserData> {
   const oAuth2Client = new OAuth2Client();
 
   // Get Google's public keys and verify the JWT
@@ -139,42 +139,47 @@ async function validateIAPToken(token: string, expectedAudience: string): Promis
  *
  * @returns Express middleware function
  */
-export default function iapAuthMiddleware() {
+export default function iapAuthMiddleware () {
   const iapConfig = getIAPConfig();
 
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    // Skip IAP validation if not enabled (typically development mode)
-    if (!iapConfig.enabled) {
-      if (iapConfig.devAutoSeed) {
-        req.iapUser = createDevIAPUser();
-        console.log(`IAP Auth DEV: User ${req.iapUser?.email} authenticated`);
-        return next();
+    try {
+      // Skip IAP validation if not enabled (typically development mode)
+      if (!iapConfig.enabled) {
+        if (iapConfig.devAutoSeed) {
+          req.iapUser = createDevIAPUser();
+          console.log(`IAP Auth DEV: User ${req.iapUser?.email} authenticated`);
+          return next();
+        }
+        throw new UnauthorizedException('IAP authentication is not enabled');
       }
-      throw new UnauthorizedException('IAP authentication is not enabled');
+
+      // Extract JWT from IAP header
+      const iapJwt = req.header('x-goog-iap-jwt-assertion');
+
+      if (!iapJwt) {
+        return res.status(401).json({
+          error: 'Unauthorized',
+          message: 'Missing IAP JWT token. This application must be accessed through Google Cloud IAP.',
+        });
+      }
+
+      // Build expected audience for validation
+      const expectedAudience = buildExpectedAudience(iapConfig);
+
+      if (!expectedAudience) {
+        console.error('IAP configuration error: Missing project configuration');
+        throw new InternalServerErrorException();
+      }
+
+      // Attach user data and session data to the request for downstream use
+      req.iapUser = await validateIAPToken(iapJwt, expectedAudience);
+      req.sessionData = await IapUserSessionService.handleAuthenticatedUser(req.iapUser, req);
+
+      next();
+    } catch (error) {
+      // Pass any errors above to Express error handling middleware
+      next(error);
     }
-
-    // Extract JWT from IAP header
-    const iapJwt = req.header('x-goog-iap-jwt-assertion');
-
-    if (!iapJwt) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Missing IAP JWT token. This application must be accessed through Google Cloud IAP.',
-      });
-    }
-
-    // Build expected audience for validation
-    const expectedAudience = buildExpectedAudience(iapConfig);
-
-    if (!expectedAudience) {
-      console.error('IAP configuration error: Missing project configuration');
-      throw new InternalServerErrorException();
-    }
-
-    // Attach user data and session data to the request for downstream use
-    req.iapUser = await validateIAPToken(iapJwt, expectedAudience);
-    req.sessionData = await IapUserSessionService.handleAuthenticatedUser(req.iapUser, req);
-
-    next();
   };
 }
