@@ -19,12 +19,18 @@ export interface IAPUserData {
 /**
  * Configuration for IAP authentication
  */
-interface IAPConfig {
+export interface IAPConfig {
   enabled: boolean;
   projectNumber?: string;
   projectId?: string;
   backendServiceId?: string;
-  devAutoSeed?: boolean;
+  devAutoSeed?: {
+    enabled: boolean;
+    user: {
+      email: string;
+      name: string;
+    };
+  };
 }
 
 /**
