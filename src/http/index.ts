@@ -25,8 +25,11 @@ export interface HttpOptions {
   // Options injectable into the routes importer
   routesImporter?: RoutesImporter;
 
-  // An array of valid express ApplicationRequestHandlers (middlewares) injected BEFORE loading routes
-  requestMiddleware?: any | [string, any][];
+  // An array of valid express ApplicationRequestHandlers (middlewares) injected BEFORE loading routes and BEFORE the standard request middleware
+  requestMiddlewareBefore?: any | [string, any][];
+
+  // An array of valid express ApplicationRequestHandlers (middlewares) injected BEFORE loading routes and AFTER the standard request middleware
+  requestMiddlewareAfter?: any | [string, any][];
 
   // an array of valid express ApplicationRequestHandlers (middlewares) injected AFTER loading routes
   errorMiddleware?: any | [string, any][];
@@ -54,10 +57,15 @@ export default async (port: number, options: HttpOptions = {}): Promise<Http> =>
     });
   };
 
+  if (options.requestMiddlewareAfter) {
+    useMiddlewares(options.requestMiddlewareAfter);
+  }
+
   // Generally middlewares that should parse the request before hitting a route
   requestMiddleware(app, options?.appMiddlewareOptions);
-  if (options.requestMiddleware) {
-    useMiddlewares(options.requestMiddleware);
+
+  if (options.requestMiddlewareAfter) {
+    useMiddlewares(options.requestMiddlewareAfter);
   }
 
   // The actual API routes
