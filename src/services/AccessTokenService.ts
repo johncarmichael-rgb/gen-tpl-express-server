@@ -8,12 +8,12 @@ export interface ValidateRequestOptions {
 
 /**
  * AccessTokenService
- * 
+ *
  * Validates session cookies for authenticated requests.
- * 
+ *
  * NOTE: In production, sessions are created by iapAuthMiddleware.
  * This service only validates that a valid session exists.
- * 
+ *
  * For development without IAP, sessions must be created manually via API.
  */
 class AccessTokenService {
@@ -51,8 +51,8 @@ class AccessTokenService {
         return next();
       }
       return this.denyRequest(
-        res, 
-        'No session provided', 
+        res,
+        'No session provided',
         'Authentication required. Please access through Google Cloud IAP or create a session.',
         JSON.stringify(req.cookies)
       );
@@ -60,13 +60,13 @@ class AccessTokenService {
 
     try {
       const session = await SessionRepository.findBySessionId(sessionId);
-      
+
       if (!session) {
         return this.denyRequest(res, 'Invalid session', 'Session not found or expired.');
       }
 
       // Update last accessed time (fire and forget)
-      SessionRepository.updateLastAccessed(sessionId).catch(err => 
+      SessionRepository.updateLastAccessed(sessionId).catch((err: any) =>
         console.error('Failed to update session last accessed:', err)
       );
 
@@ -75,7 +75,7 @@ class AccessTokenService {
         sessionId: session.sessionId,
         userId: session.userId,
       };
-      
+
       next();
     } catch (error) {
       console.error('Session validation error:', error);

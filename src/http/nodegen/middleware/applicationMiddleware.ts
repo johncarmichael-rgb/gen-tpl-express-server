@@ -1,8 +1,5 @@
 import {
   corsMiddleware,
-  handleDomain404,
-  handleExpress404,
-  handleHttpException,
   headersCaching,
   iapAuthMiddleware,
   inferResponseType,
@@ -12,6 +9,7 @@ import expressFormData from 'express-form-data';
 import morgan from 'morgan';
 import { tmpdir } from 'os';
 import requestIp from 'request-ip';
+import cookieParser from 'cookie-parser';
 import packageJson from '../../../../package.json';
 import * as helmet from 'helmet'
 
@@ -28,6 +26,9 @@ export const responseHeaders = (app: express.Application): void => {
 };
 
 export const requestParser = (app: express.Application): void => {
+  // parse any cookies 1st
+  app.use(cookieParser());
+
   // parse data with connect-multiparty
   app.use(
     expressFormData.parse({
@@ -99,14 +100,4 @@ export const requestMiddleware = (app: express.Application, appMiddlewareOpts?: 
   responseHeaders(app);
   authenticationMiddleware(app); // Apply IAP authentication
   app.use(inferResponseType());
-};
-
-/**
- * Injects routes into the passed express app
- * @param app
- */
-export const responseMiddleware = (app: express.Application): void => {
-  app.use(handleExpress404());
-  app.use(handleDomain404());
-  app.use(handleHttpException());
 };
