@@ -1,7 +1,8 @@
 import { OAuth2Client } from 'google-auth-library';
 import express from 'express';
 import config from '@/config';
-import { UnauthorizedException } from '../errors';
+import { InternalServerErrorException, UnauthorizedException } from '../errors';
+import IapUserSessionService from '@/services/IapUserSessionService';
 
 /**
  * IAP JWT payload structure from Google Cloud IAP
@@ -39,11 +40,11 @@ export interface IAPConfig {
  */
 function getIAPConfig(): IAPConfig {
   return {
-    enabled: config.env === 'production' || config.iap.enabled === 'true',
+    enabled: config.env === 'production' || config.iap.enabled,
     projectNumber: config.iap.projectNumber,
     projectId: config.iap.projectId,
     backendServiceId: config.iap.backendServiceId,
-    devAutoSeed: config.iap.devAutoSeed.enabled,
+    devAutoSeed: config.iap.devAutoSeed,
   };
 }
 
@@ -83,9 +84,9 @@ function buildExpectedAudience(iapConfig: IAPConfig): string | null {
 function createDevIAPUser(): IAPUserData {
   const now = Math.floor(Date.now() / 1000);
   return {
-    email: config.iap.devAutoSeed.user.email,
-    sub: `accounts.google.com:dev-${config.iap.devAutoSeed.user.email}`,
-    name: config.iap.devAutoSeed.user.name,
+    email: config.iap.devAutoSeed?.user.email || '',
+    sub: `accounts.google.com:dev-${config.iap.devAutoSeed?.user.email}`,
+    name: config.iap.devAutoSeed?.user.name,
     picture: undefined,
     aud: '/projects/dev/apps/dev',
     iss: 'https://cloud.google.com/iap',
@@ -100,35 +101,31 @@ function createDevIAPUser(): IAPUserData {
 async function validateIAPToken(token: string, expectedAudience: string): Promise<IAPUserData> {
   const oAuth2Client = new OAuth2Client();
 
-  try {
-    // Get Google's public keys and verify the JWT
-    const response = await oAuth2Client.getIapPublicKeys();
-    const ticket = await oAuth2Client.verifySignedJwtWithCertsAsync(token, response.pubkeys, expectedAudience, [
-      'https://cloud.google.com/iap',
-    ]);
+  // Get Google's public keys and verify the JWT
+  const response = await oAuth2Client.getIapPublicKeys();
+  const ticket = await oAuth2Client.verifySignedJwtWithCertsAsync(token, response.pubkeys, expectedAudience, [
+    'https://cloud.google.com/iap',
+  ]);
 
-    const payload = ticket.getPayload();
-    if (!payload) {
-      throw new Error('Invalid JWT payload');
-    }
-
-    if (!payload.email || !payload.sub || !payload.iat || !payload.exp) {
-      throw new UnauthorizedException('Invalid JWT payload - missing email, sub, iat, or exp');
-    }
-
-    return {
-      email: payload.email,
-      sub: payload.sub,
-      name: payload.name,
-      picture: payload.picture,
-      aud: payload.aud as string,
-      iss: payload.iss as string,
-      iat: payload.iat,
-      exp: payload.exp,
-    };
-  } catch (error) {
-    throw new Error(`IAP JWT validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  const payload = ticket.getPayload();
+  if (!payload) {
+    throw new UnauthorizedException('Invalid JWT payload');
   }
+
+  if (!payload.email || !payload.sub || !payload.iat || !payload.exp) {
+    throw new UnauthorizedException('Invalid JWT payload - missing email, sub, iat, or exp');
+  }
+
+  return {
+    email: payload.email,
+    sub: payload.sub,
+    name: payload.name,
+    picture: payload.picture,
+    aud: payload.aud as string,
+    iss: payload.iss as string,
+    iat: payload.iat,
+    exp: payload.exp,
+  };
 }
 
 /**
@@ -156,41 +153,28 @@ export default function iapAuthMiddleware() {
       throw new UnauthorizedException('IAP authentication is not enabled');
     }
 
-    try {
-      // Extract JWT from IAP header
-      const iapJwt = req.header('x-goog-iap-jwt-assertion');
+    // Extract JWT from IAP header
+    const iapJwt = req.header('x-goog-iap-jwt-assertion');
 
-      if (!iapJwt) {
-        return res.status(401).json({
-          error: 'Unauthorized',
-          message: 'Missing IAP JWT token. This application must be accessed through Google Cloud IAP.',
-        });
-      }
-
-      // Build expected audience for validation
-      const expectedAudience = buildExpectedAudience(iapConfig);
-
-      if (!expectedAudience) {
-        console.error('IAP configuration error: Missing project configuration');
-        return res.status(500).json({
-          error: 'Configuration Error',
-          message: 'IAP authentication is not properly configured.',
-        });
-      }
-
-      // Validate JWT and extract user data
-      const userData = await validateIAPToken(iapJwt, expectedAudience);
-
-      // Attach user data to request for downstream use
-      req.iapUser = userData;
-
-      next();
-    } catch (error) {
-      console.error('IAP authentication error:', error);
+    if (!iapJwt) {
       return res.status(401).json({
         error: 'Unauthorized',
-        message: 'Invalid or expired IAP token.',
+        message: 'Missing IAP JWT token. This application must be accessed through Google Cloud IAP.',
       });
     }
+
+    // Build expected audience for validation
+    const expectedAudience = buildExpectedAudience(iapConfig);
+
+    if (!expectedAudience) {
+      console.error('IAP configuration error: Missing project configuration');
+      throw new InternalServerErrorException();
+    }
+
+    // Attach user data and session data to the request for downstream use
+    req.iapUser = await validateIAPToken(iapJwt, expectedAudience);
+    req.sessionData = await IapUserSessionService.handleAuthenticatedUser(req.iapUser, req);
+
+    next();
   };
 }
