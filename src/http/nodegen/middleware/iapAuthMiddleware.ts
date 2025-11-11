@@ -24,6 +24,7 @@ interface IAPConfig {
   projectNumber?: string;
   projectId?: string;
   backendServiceId?: string;
+  devAutoSeed?: boolean;
 }
 
 /**
@@ -31,10 +32,11 @@ interface IAPConfig {
  */
 function getIAPConfig(): IAPConfig {
   return {
-    enabled: config.env === 'production' || process.env.IAP_ENABLED === 'true',
-    projectNumber: process.env.GCP_PROJECT_NUMBER,
-    projectId: process.env.GCP_PROJECT_ID,
-    backendServiceId: process.env.GCP_BACKEND_SERVICE_ID,
+    enabled: config.env === 'production' || config.iap.enabled === 'true',
+    projectNumber: config.iap.projectNumber,
+    projectId: config.iap.projectId,
+    backendServiceId: config.iap.backendServiceId,
+    devAutoSeed: config.iap.devAutoSeed.enabled,
   };
 }
 
@@ -66,6 +68,23 @@ function buildExpectedAudience(iapConfig: IAPConfig): string | null {
   }
 
   return null;
+}
+
+/**
+ * Create a development IAP user object from config
+ */
+function createDevIAPUser(): IAPUserData {
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    email: config.iap.devAutoSeed.user.email,
+    sub: `accounts.google.com:dev-${config.iap.devAutoSeed.user.email}`,
+    name: config.iap.devAutoSeed.user.name,
+    picture: undefined,
+    aud: '/projects/dev/apps/dev',
+    iss: 'https://cloud.google.com/iap',
+    iat: now,
+    exp: now + 3600, // 1 hour from now
+  };
 }
 
 /**
@@ -114,11 +133,18 @@ async function validateIAPToken(token: string, expectedAudience: string): Promis
  * @returns Express middleware function
  */
 export default function iapAuthMiddleware() {
+  // Cache the config setup in a local var here
   const iapConfig = getIAPConfig();
 
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    // Skip IAP validation if not enabled (development mode)
+    // Skip IAP validation if not enabled (typically development mode)
     if (!iapConfig.enabled) {
+      if (iapConfig.devAutoSeed) {
+        // Set a properly structured dev user object
+        req.iapUser = createDevIAPUser();
+        console.log(`IAP Auth DEV: User ${req.iapUser?.email} authenticated`);
+        return next();
+      }
       return next();
     }
 

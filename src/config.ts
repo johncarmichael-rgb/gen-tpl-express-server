@@ -19,9 +19,25 @@ export default {
 
   // Google Cloud IAP Authentication
   iap: {
-    enabled: ProcEnvHelper.getOrSetDefault('IAP_ENABLED', false),
+    enabled: ProcEnvHelper.requiredOrThrow('IAP_ENABLED'),
     projectNumber: ProcEnvHelper.getOrSetDefault('GCP_PROJECT_NUMBER', ''),
     projectId: ProcEnvHelper.getOrSetDefault('GCP_PROJECT_ID', ''),
     backendServiceId: ProcEnvHelper.getOrSetDefault('GCP_BACKEND_SERVICE_ID', ''),
+
+    /**
+     * This is in place due to the complexities of mocking the Google Cloud IAP Authentication locally.
+     *
+     * APPLIES ONLY WHEN: iap=false AND env=develop AND devAutoSeed=true the system will automatically:
+     *   1. Seed the database with a DEV user
+     *   2. Seed the database with a DEV company
+     *   3. Automatically create a session for any API request for the DEV user
+     */
+    devAutoSeed: {
+      enabled: ProcEnvHelper.getOrSetDefault('IAP_ENABLED', false),
+      user: {
+        email: 'dev@temp-local-only.invalid',
+        name: 'Joe Dev User'
+      }
+    },
   },
 };
