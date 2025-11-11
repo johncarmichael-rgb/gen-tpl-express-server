@@ -28,16 +28,16 @@ export default {
     /**
      * This is in place due to the complexities of mocking the Google Cloud IAP Authentication locally.
      *
-     * APPLIES ONLY WHEN: iap=false AND env=develop AND devAutoSeed=true 
-     * 
+     * APPLIES ONLY WHEN: iap=false AND env=develop AND devAutoSeed=true
+     *
      * It will automatically when the above is true:
      *   1. Seed the database with a DEV user
      *   2. Automatically create a session for any API request for the DEV user
-     * 
+     *
      * It will NOT automatically do anything else.
      */
     devAutoSeed: {
-      enabled: ProcEnvHelper.getOrSetDefault('IAP_ENABLED', false),
+      enabled: ProcEnvHelper.getOrSetDefault('IAP_DEV_AUTO_SEED', false),
       user: {
         email: 'dev@temp-local-only.invalid',
         name: 'Joe Dev User'
