@@ -1,6 +1,6 @@
 import express = require('express');
 import NodegenRequest from '@/http/interfaces/NodegenRequest';
-import SessionRepository from '@/database/SessionRepository';
+import IapUserSessionService from '@/services/IapUserSessionService';
 
 export interface ValidateRequestOptions {
   passThruWithoutSession: boolean;
@@ -9,12 +9,16 @@ export interface ValidateRequestOptions {
 /**
  * AccessTokenService
  *
- * Validates session cookies for authenticated requests.
+ * Processes IAP-authenticated users and manages their sessions.
  *
- * NOTE: In production, sessions are created by iapAuthMiddleware.
- * This service only validates that a valid session exists.
+ * Flow:
+ * 1. IAP middleware validates JWT and sets req.iapUser
+ * 2. This service creates/finds the user in the database
+ * 3. Creates/finds a session for the user
+ * 4. Attaches session data to req.sessionData
  *
- * For development without IAP, sessions must be created manually via API.
+ * Sessions are stored in the database for tracking and analytics,
+ * but authentication is always via IAP JWT, not session cookies.
  */
 class AccessTokenService {
   private denyRequest(
@@ -31,55 +35,38 @@ class AccessTokenService {
   }
 
   public async validateRequest(
-    req: NodegenRequest,
+    req: express.Request,
     res: express.Response,
     next: express.NextFunction,
     headerNames: string[],
     options?: ValidateRequestOptions
   ): Promise<void> {
-    // Check if session data was already set by iapAuthMiddleware
-    if (req.sessionData) {
-      // Session already validated by IAP middleware, continue
-      return next();
-    }
-
-    // No session data from IAP middleware, check for session cookie
-    const sessionId = req.cookies?.session;
-
-    if (!sessionId) {
-      if (options && options.passThruWithoutSession) {
-        return next();
-      }
+    // IAP user must be present (set by iapAuthMiddleware)
+    if (!req.iapUser) {
       return this.denyRequest(
         res,
-        'No session provided',
-        'Authentication required. Please access through Google Cloud IAP or create a session.',
-        JSON.stringify(req.cookies)
+        'No IAP user data',
+        'IAP authentication failed. User data not found.'
       );
     }
 
+    // Process the authenticated user and create/find their session
     try {
-      const session = await SessionRepository.findBySessionId(sessionId);
-
-      if (!session) {
-        return this.denyRequest(res, 'Invalid session', 'Session not found or expired.');
-      }
-
-      // Update last accessed time (fire and forget)
-      SessionRepository.updateLastAccessed(sessionId).catch((err: any) =>
-        console.error('Failed to update session last accessed:', err)
+      console.log(`🔐 Processing IAP user: ${req.iapUser.email}`);
+      const sessionData = await IapUserSessionService.handleAuthenticatedUser(
+        req.iapUser,
+        req
       );
-
-      // Attach minimal session data to request
-      req.sessionData = {
-        sessionId: session.sessionId,
-        userId: session.userId,
-      };
-
-      next();
+      req.sessionData = sessionData;
+      console.log(`✅ IAP user processed: ${req.iapUser.email} -> session ${sessionData.sessionId}`);
+      return next();
     } catch (error) {
-      console.error('Session validation error:', error);
-      this.denyRequest(res, 'Session validation failed', 'Invalid session.');
+      console.error('❌ Failed to process IAP user:', error);
+      return this.denyRequest(
+        res,
+        'IAP user processing failed',
+        error instanceof Error ? error.message : 'Failed to create user session'
+      );
     }
   }
 }

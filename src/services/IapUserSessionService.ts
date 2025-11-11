@@ -21,29 +21,26 @@ class IapUserSessionService {
   /**
    * Handle complete user and session setup for IAP-authenticated request
    *
-   * This is the main entry point called by iapAuthMiddleware.
+   * This is the main entry point called by AccessTokenService.
    *
    * Flow:
    * 1. Find or create user (and company if needed)
-   * 2. Find or create session
-   * 3. Set session cookie
-   * 4. Return session data to attach to request
+   * 2. Find or create session (for tracking/analytics)
+   * 3. Return session data to attach to request
    *
    * @param iapUserData - Validated IAP user data from JWT
-   * @param req - Express request
-   * @param res - Express response (for setting cookies)
+   * @param req - Express request (for IP and user agent)
    * @returns Session data to attach to request
    */
   async handleAuthenticatedUser(
     iapUserData: IAPUserData,
-    req: express.Request,
-    res: express.Response
+    req: express.Request
   ): Promise<{ sessionId: string; userId: string }> {
     // Find or create user (and company if needed)
     const user = await this.findOrCreateUser(iapUserData);
 
-    // Find or create session and set cookie
-    const session = await SessionService.findOrCreateSession(user._id, res, req);
+    // Find or create session (for tracking/analytics)
+    const session = await SessionService.findOrCreateSession(user._id, req);
 
     console.log(`🔐 IAP Auth complete: ${user.email} → Session: ${session.sessionId}`);
 
