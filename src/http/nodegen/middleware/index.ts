@@ -1,4 +1,3 @@
-export { default as accessTokenMiddleware } from './accessTokenMiddleware';
 export { default as apiCaching } from './apiCaching';
 export * from './applicationMiddleware';
 export { default as corsMiddleware } from './corsMiddleware';
