@@ -38,13 +38,13 @@ export interface IAPConfig {
 /**
  * Get IAP configuration from environment variables
  */
-export function getIAPConfig (): IAPConfig {
+export function getIAPConfig(): IAPConfig {
   return {
     enabled: config.env === 'production' || config.iap.enabled,
     projectNumber: config.iap.projectNumber,
     projectId: config.iap.projectId,
     backendServiceId: config.iap.backendServiceId,
-    devAutoSeed: config.iap.devAutoSeed,
+    devAutoSeed: config.env !== 'production' && config.iap.devAutoSeed ? config.iap.devAutoSeed : undefined,
   };
 }
 
@@ -64,7 +64,7 @@ export function getIAPConfig (): IAPConfig {
  * ✅ Required by Google's library - Can't skip this parameter
  * ✅ Matches your GCP setup - Ensures token was issued for YOUR app specifically
  */
-function buildExpectedAudience (iapConfig: IAPConfig): string | null {
+function buildExpectedAudience(iapConfig: IAPConfig): string | null {
   const { projectNumber, projectId, backendServiceId } = iapConfig;
 
   if (projectNumber && projectId) {
@@ -81,7 +81,7 @@ function buildExpectedAudience (iapConfig: IAPConfig): string | null {
 /**
  * Create a development IAP user object from config
  */
-function createDevIAPUser (): IAPUserData {
+function createDevIAPUser(): IAPUserData {
   const now = Math.floor(Date.now() / 1000);
   return {
     email: config.iap.devAutoSeed?.user.email || '',
@@ -98,7 +98,7 @@ function createDevIAPUser (): IAPUserData {
 /**
  * Validate IAP JWT token and extract user data
  */
-async function validateIAPToken (token: string, expectedAudience: string): Promise<IAPUserData> {
+async function validateIAPToken(token: string, expectedAudience: string): Promise<IAPUserData> {
   const oAuth2Client = new OAuth2Client();
 
   // Get Google's public keys and verify the JWT
@@ -139,7 +139,7 @@ async function validateIAPToken (token: string, expectedAudience: string): Promi
  *
  * @returns Express middleware function
  */
-export default function iapAuthMiddleware () {
+export default function iapAuthMiddleware() {
   const iapConfig = getIAPConfig();
 
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
