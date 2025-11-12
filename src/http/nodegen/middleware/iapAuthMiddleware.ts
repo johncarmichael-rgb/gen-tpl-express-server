@@ -38,7 +38,7 @@ export interface IAPConfig {
 /**
  * Get IAP configuration from environment variables
  */
-function getIAPConfig (): IAPConfig {
+export function getIAPConfig (): IAPConfig {
   return {
     enabled: config.env === 'production' || config.iap.enabled,
     projectNumber: config.iap.projectNumber,
