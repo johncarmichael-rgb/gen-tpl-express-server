@@ -1,7 +1,11 @@
 import express from 'express';
 import { randomUUID } from 'crypto';
+
+// Implement your own data layer and types here
 import SessionRepository from '@/database/SessionRepository';
 import { SessionClass } from '@/database/models/SessionModel';
+
+export interface SessionData extends SessionClass {}
 
 /**
  * SessionService

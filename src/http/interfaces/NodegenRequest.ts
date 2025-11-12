@@ -1,5 +1,6 @@
 import express from 'express';
 import { IAPUserData } from '@/http/nodegen/middleware/iapAuthMiddleware';
+import { SessionData } from '@/services/SessionService';
 
 declare global {
   namespace Express {
@@ -9,14 +10,8 @@ declare global {
       clientIp?: string;
       iapUser?: IAPUserData;
 
-      /** If content-negotiation fails, default to this Content-Type instead of throwing. Can be set in the domain. */
-      defaultContentType?: string;
-
-      // From RequestExtension
-      sessionData: {
-        sessionId: string;
-        userId: string;
-      };
+      // sessionData is defined in SessionService outside of the http layer for each
+      sessionData: SessionData
     }
   }
 }
