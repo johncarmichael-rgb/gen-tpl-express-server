@@ -15,6 +15,11 @@ export default {
   env: ProcEnvHelper.getOrSetDefault('NODE_ENV', 'production'),
   port: ProcEnvHelper.getOrSetDefault('PORT', 8080),
 
+  // Logger mode - Controls console.log verbosity
+  // Options: 'error', 'warn', 'info', 'log', 'debug', 'verbose'
+  // Each level includes all higher priority levels (e.g., 'info' includes 'error' and 'warn')
+  loggerMode: ProcEnvHelper.getOrSetDefault('LOGGER_MODE', 'development'),
+
   // Cors white list of URLs
   corsWhiteList: ProcEnvHelper.getOrSetDefault('CORS_WHITELIST', '*'),
 
