@@ -67,12 +67,13 @@ export function getIAPConfig(): IAPConfig {
 function buildExpectedAudience(iapConfig: IAPConfig): string | null {
   const { projectNumber, projectId, backendServiceId } = iapConfig;
 
-  if (projectNumber && projectId) {
-    // Expected Audience for App Engine
-    return `/projects/${projectNumber}/apps/${projectId}`;
-  } else if (projectNumber && backendServiceId) {
+  // Prioritize backendServiceId (Load Balancer) over projectId (App Engine)
+  if (projectNumber && backendServiceId) {
     // Expected Audience for Compute Engine / Load Balancer
     return `/projects/${projectNumber}/global/backendServices/${backendServiceId}`;
+  } else if (projectNumber && projectId) {
+    // Expected Audience for App Engine
+    return `/projects/${projectNumber}/apps/${projectId}`;
   }
 
   return null;
@@ -103,6 +104,21 @@ async function validateIAPToken(token: string, expectedAudience: string): Promis
 
   // Get Google's public keys and verify the JWT
   const response = await oAuth2Client.getIapPublicKeys();
+
+  // Decode token to see actual audience (for debugging)
+  const parts = token.split('.');
+  if (parts.length === 3) {
+    try {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+      console.verbose('🔍 IAP Token Debug:');
+      console.verbose('  Expected audience:', expectedAudience);
+      console.verbose('  Actual audience:  ', payload.aud);
+      console.verbose('  Match:', payload.aud === expectedAudience);
+    } catch (e) {
+      // Ignore decode errors
+    }
+  }
+
   const ticket = await oAuth2Client.verifySignedJwtWithCertsAsync(token, response.pubkeys, expectedAudience, [
     'https://cloud.google.com/iap',
   ]);
@@ -154,10 +170,7 @@ export default function iapAuthMiddleware() {
         const iapJwt = req.header('x-goog-iap-jwt-assertion');
 
         if (!iapJwt) {
-          return res.status(401).json({
-            error: 'Unauthorized',
-            message: 'Missing IAP JWT token. This application must be accessed through Google Cloud IAP.',
-          });
+          throw new UnauthorizedException('Missing IAP JWT token. This application must be accessed through Google Cloud IAP.');
         }
 
         // Build expected audience for validation
