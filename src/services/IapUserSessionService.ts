@@ -68,7 +68,7 @@ class IapUserSessionService {
     let user = await UserRepository.findByExternalId(iapUser.sub);
 
     if (user) {
-      console.log(`✅ Existing user found: ${user.email} (${user._id})`);
+      console.verbose(`✅ Existing user found: ${user.email} (${user._id})`);
       return user;
     }
 
