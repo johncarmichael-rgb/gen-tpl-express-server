@@ -1,13 +1,16 @@
-import config from '@/config';
 import cors from 'cors';
+
+export interface CorsOptions {
+  corsWhiteList?: string[];
+}
 
 /**
  * CORS middleware
  * Add to your config: config.corsWhiteList
  * The value should be a comma separated list of permitted domains
  */
-export default () => {
-  const whitelist = config.corsWhiteList.split(',');
+export default (corsOptions?: CorsOptions) => {
+  const whitelist = corsOptions?.corsWhiteList || ['*'];
 
   if (whitelist.length === 1 && whitelist[0] === '*') {
     // Allow all origins but with credentials support (reflect the origin)
@@ -27,4 +30,4 @@ export default () => {
     },
     credentials: true, // Allow credentials - aka cookies
   });
-}
+};

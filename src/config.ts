@@ -16,12 +16,10 @@ export default {
   port: ProcEnvHelper.getOrSetDefault('PORT', 8080),
 
   // Logger mode - Controls console.log verbosity
+  // This is not another customer logger package, use console.<method> directly
   // Options: 'error', 'warn', 'info', 'log', 'debug', 'verbose'
   // Each level includes all higher priority levels (e.g., 'info' includes 'error' and 'warn')
   loggerMode: ProcEnvHelper.getOrSetDefault('LOGGER_MODE', 'development'),
-
-  // Cors white list of URLs
-  corsWhiteList: ProcEnvHelper.getOrSetDefault('CORS_WHITELIST', '*'),
 
   // Google Cloud IAP Authentication
   iap: {
