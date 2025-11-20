@@ -57,8 +57,8 @@ export default async (port: number, options: HttpOptions = {}): Promise<Http> =>
     });
   };
 
-  if (options.requestMiddlewareAfter) {
-    useMiddlewares(options.requestMiddlewareAfter);
+  if (options.requestMiddlewareBefore) {
+    useMiddlewares(options.requestMiddlewareBefore);
   }
 
   // Generally middlewares that should parse the request before hitting a route
