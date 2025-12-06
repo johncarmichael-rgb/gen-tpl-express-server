@@ -31,6 +31,10 @@ export default function() {
         {% else -%}
           /* x-raw-body on path not found: Format the body */
           express.json({ limit: '50mb' }),
+          {%- if path['x-permission'] %}
+            /* x-permission on path found: Check permission of the incoming user */
+            permissionMiddleware('{{ path['x-permission'] }}'),
+          {% endif -%}
           {%- if path['x-async-validators'] -%}
             /* x-async-validators on path found: Call an async validator function and throw an appropriate error */
           asyncValidationMiddleware({{ path['x-async-validators'] | dump }}),
