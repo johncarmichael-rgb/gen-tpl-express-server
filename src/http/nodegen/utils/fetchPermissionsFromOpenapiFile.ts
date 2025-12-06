@@ -10,7 +10,7 @@ export default (absOpenApiFilePath: string) => {
           data
             .toString('utf8')
             .split('\n')
-            .reduce(
+            .reduce<string[]>(
               (perms, line) => {
                 const match = line.match(/^.*x-permission: ?(.*)$/);
                 if (match) {
