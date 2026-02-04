@@ -1,7 +1,6 @@
 import express from 'express'
 
-{% if operationsPathsHasParamsToValidate(operations) %}import {celebrate} from 'celebrate'{% endif %}
-{% if pathMethodsHaveAttr(operations, 'security') %}import accessTokenMiddleware from '../middleware/accessTokenMiddleware'{% endif %}
+{% if operationsPathsHasParamsToValidate(operations) %}import {celebrate} from 'celebrate'{% endif %} 
 {% if pathMethodsHaveAttr(operations, 'x-cache') %}import apiCaching from '../middleware/apiCaching'{% endif %}
 {% if pathMethodsHaveAttr(operations, 'x-permission') %}import permissionMiddleware from '../middleware/permissionMiddleware'{% endif %}
 {% if pathMethodsHaveAttr(operations, 'x-async-validators') %}import asyncValidationMiddleware from '../middleware/asyncValidationMiddleware'{% endif %}

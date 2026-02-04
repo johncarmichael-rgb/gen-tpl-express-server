@@ -64,7 +64,7 @@ export function getIAPConfig(): IAPConfig {
  * ✅ Required by Google's library - Can't skip this parameter
  * ✅ Matches your GCP setup - Ensures token was issued for YOUR app specifically
  */
-function buildExpectedAudience(iapConfig: IAPConfig): string | null {
+export function buildExpectedAudience(iapConfig: IAPConfig): string | null {
   const { projectNumber, projectId, backendServiceId } = iapConfig;
 
   // Prioritize backendServiceId (Load Balancer) over projectId (App Engine)
@@ -82,7 +82,7 @@ function buildExpectedAudience(iapConfig: IAPConfig): string | null {
 /**
  * Create a development IAP user object from config
  */
-function createDevIAPUser(): IAPUserData {
+export function createDevIAPUser(): IAPUserData {
   const now = Math.floor(Date.now() / 1000);
   return {
     email: config.iap.devAutoSeed?.user.email || '',
@@ -99,7 +99,7 @@ function createDevIAPUser(): IAPUserData {
 /**
  * Validate IAP JWT token and extract user data
  */
-async function validateIAPToken(token: string, expectedAudience: string): Promise<IAPUserData> {
+export async function validateIAPToken(token: string, expectedAudience: string): Promise<IAPUserData> {
   const oAuth2Client = new OAuth2Client();
 
   // Get Google's public keys and verify the JWT
