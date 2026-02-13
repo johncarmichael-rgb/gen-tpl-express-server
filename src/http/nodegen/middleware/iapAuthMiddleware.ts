@@ -132,6 +132,13 @@ export async function validateIAPToken(token: string, expectedAudience: string):
     throw new UnauthorizedException('Invalid JWT payload - missing email, sub, iat, or exp');
   }
 
+  // Extract email from Identity Platform format
+  // IAP with Identity Platform returns email as: "securetoken.google.com/project-id:user@example.com"
+  const colonIndex = payload.email.indexOf(':');
+  if (colonIndex !== -1) {
+    payload.email = payload.email.slice(colonIndex + 1);
+  }
+
   return {
     email: payload.email,
     sub: payload.sub,
